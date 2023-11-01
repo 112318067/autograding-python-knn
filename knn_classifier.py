@@ -22,8 +22,16 @@ def knn_calc_dists(xTrain, xTest, k):
         dists = distances between xTrain/xTest points. Size of n x m
         indices = kxm matrix with indices of yTrain labels
     """
-    indices = np.random.rand(xTrain.shape[0], xTest.shape[0])
-    distances = np.random.rand(xTrain.shape[0], xTest.shape[0])
+    distances = -2 * xTrain@xTest.T + np.sum(xTest**2,axis=1) + np.sum(xTrain**2,axis=1)[:, np.newaxis]
+    #because of numpy precision, some really small numbers might 
+    #become negatives. So, the following is required.
+    distances[distances < 0] = 0
+    #for speed you can avoid the square root since it won't affect
+    #the result, but apply it for exact distances.
+    distances = distances**.5
+    indices = np.argsort(distances, 0) #get indices of sorted items
+    distances = np.sort(distances,0) #distances sorted in axis 0
+    #returning the top-k closest distances.
     return indices[0:k, : ], distances[0:k, : ]
 
 def knn_predict(xTrain, yTrain, xTest, k=3):
@@ -37,18 +45,23 @@ def knn_predict(xTrain, yTrain, xTest, k=3):
         predictions = predicted labels, ie preds(i) is the predicted label of xTest(i,:)
     """
     indices, distances = knn_calc_dists(xTrain, xTest, k)
+    yTrain = yTrain.flatten()
     rows, columns = indices.shape
-    predictions = []
+    predictions = list()
     for j in range(columns):
-        predictions.append(['N/A'])
+        temp = list()
+        for i in range(rows):
+            cell = indices[i][j]
+            temp.append(yTrain[cell])
+        predictions.append(max(temp,key=temp.count)) 
     
     return np.array(predictions)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="K Nearest Neighbor Classifier")
-    parser.add_argument("--train-csv", help="Training data in CSV format. Labels are stored in the last column.", required=True)
-    parser.add_argument("--test-csv", help="Test data in CSV format", required=True)
+    parser.add_argument("--train-csv", default="data/IRIS.csv", help="Training data in CSV format. Labels are stored in the last column.")
+    parser.add_argument("--test-csv",default="data/iris_test.csv", help="Test data in CSV format")
     parser.add_argument("--num_k", "-k", dest="K", help="Number of nearest neighbors", default=3, type=int)
     args = parser.parse_args()
 
@@ -71,4 +84,4 @@ if __name__ == "__main__":
     # Calculate accuracy
     result = predictions == test_label
     accuracy = sum(result == True) / len(result)
-    print('Evaluate KNN(K=%d) on Iris Flower dataset. Accuracy = %.2f' % (args.K, accuracy))
+    print('Evaluate KNN(K=%d) on Iris Flower dataset. Accuracy = %.2f' %(args.K, np.round(accuracy.max()*100,2)))
